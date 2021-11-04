@@ -1,0 +1,156 @@
+<html>
+<head>
+    <title>Chat WebSocket</title>
+
+    <script src="/webjars/sockjs-client/sockjs.min.js"></script>
+    <script src="/webjars/stomp-websocket/stomp.min.js"></script>
+    <script src="/webjars/jquery/jquery.min.js"></script>
+</head>
+<style>
+    #word1, #word2, #word3 {
+        font-size: xx-large;
+    }
+</style>
+<body onload="disconnect()">
+
+<div>
+    <div>
+        <button id="connect">Connect</button>
+        <button id="disconnect" disabled="disabled">Disconnect</button>
+    </div>
+    <br />
+    <div>
+        <label for="from" style="display: inline-block; width: 70px">Player:</label>
+        <input type="text" id="from" value="Anna"/>
+    </div>
+    <div>
+        <label for="to" style="display: inline-block; width: 70px">Opponent:</label>
+        <input type="text" id="to" value="all">
+    </div>
+
+<!--    <div>-->
+<!--        <button id="register">Register user</button>-->
+<!--    </div>-->
+<!--    <div>-->
+<!--        <button id="subscribe">Subscribe</button>-->
+<!--    </div>-->
+    <br />
+    <div id="conversationDiv">
+        <input type="text" id="text" placeholder="Guess a letter" maxlength="1"/>
+        <button id="sendMessage">Guess</button>
+        <p id="response"></p>
+    </div>
+    <div id="greetings"></div>
+
+    <div id="word" style="position: absolute; bottom: 70px; right: 550px">
+        <a id="word1">_ </a><a id="word2">_ </a><a id="word3">_ </a>
+
+        <div id="wrongAnswers">
+            <br><br>
+            <a>Wrong answers: </a> <br>
+        </div>
+    </div>
+    <div id="game" style="position: absolute; bottom: 0; right: 0">
+        <img id="dude" src="https://i1.theportalwiki.net/img/thumb/9/92/Bendy.png/120px-Bendy.png" alt="" style="position: relative; bottom: 250px; right: 700px; z-index: 2">
+        <img src="https://cdn.shopify.com/s/files/1/1133/2862/products/20468382560_Darkwood-Plank-Runner-_25x60.jpg?v=1571439201" alt="" style="position: absolute; bottom: 220px; right: 290px; width: 500px; height: 20px">
+        <img src="https://transflo.com/wp-content/uploads/2019/10/Shark-Infested-Waters.jpg" alt="" style="position: absolute; bottom: 0; right: 0; height: 200px; width: 300px; z-index: 100">
+    </div>
+</div>
+
+<script type="text/javascript">
+    var socket = null;
+    var stompClient = null;
+    var from = "anonymous user";
+    function setConnected(connected) {
+        $("#connect").prop("disabled", connected);
+        $("#disconnect").prop("disabled", !connected);
+        $("#register").prop("disabled", !connected);
+        if (connected) {
+            $("#conversation").show();
+        }
+        else {
+            $("#conversation").hide();
+        }
+        $("#greetings").html("");  // clears the greetings
+    }
+
+    function connect() {
+        socket = new SockJS('/my-endpoint'); // was gs-guide-websocket
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function (frame) {
+            setConnected(true);
+            from = $("#from").val();
+            console.log('Connected: ' + frame);
+            from = $("#from").val();
+            stompClient.subscribe('/user/' + from + '/msg', function (greeting) {
+                console.log("subscribed " + JSON.parse(greeting.body).content);
+                showGreeting(JSON.parse(greeting.body).content);
+            });
+            console.log("register() kaldet fra: " + $("#from").val());
+            stompClient.send('/app/register',{} ,$("#from").val()) // her bruger vi ikke resultatet
+        });
+    }
+
+    function subscribe(){
+        from = $("#from").val();
+        stompClient.subscribe('/user/' + from + '/msg', function (greeting) {
+            console.log("subscribed " + JSON.parse(greeting.body).content)
+            showGreeting(JSON.parse(greeting.body).content);
+        });
+    }
+
+    function register(){
+        console.log("register() kaldet fra: " + $("#from").val());
+        stompClient.send('/app/register',{} ,$("#from").val()) // her bruger vi ikke resultatet
+    }
+
+    function sendMessage() {
+        stompClient.send("/app/hello", {},JSON.stringify({
+            toWhom: $("#to").val(), // kan sættes til en privat person
+            fromWho: from,
+            message: $("#text").val()
+        }));
+    }
+
+    function showGreeting(message) {
+        $("#greetings").append("<p>" + message + "</p>");
+        if (message.charAt(0) === 'Y') {
+            $("#word"+message.charAt(14)).empty().append("<a>"+message.charAt(5)+"</a>")
+        } else {
+            $("#wrongAnswers").append("<a> " + message.charAt(7) + " </a>");
+            document.getElementById("dude").style.right = parseInt(document.getElementById("dude").style.right || 0) -100 + "px";
+            if (parseInt(document.getElementById("dude").style.right) === 200) {
+                $("#conversationDiv").empty().append("<h2> You failed! </h2>");
+                var falling = setInterval(function () {
+                    document.getElementById("dude").style.bottom = parseInt(document.getElementById("dude").style.bottom || 0) -10 + "px";
+                    document.getElementById("dude").style.right = parseInt(document.getElementById("dude").style.right || 0) - 5 + "px";
+                    if (parseInt(document.getElementById("dude").style.bottom) === 0) {
+                        clearInterval(falling);
+                    }
+                }, 200)
+            }
+        }
+    }
+
+    $(function () {
+        $("form").on('submit', function (e) {
+            e.preventDefault();
+        });
+        $( "#connect" ).click(function() { connect(); });
+        $( "#register" ).click(function() { register(); });
+        $( "#subscribe" ).click(function() { subscribe(); });
+        $( "#disconnect" ).click(function() { disconnect(); });
+        $( "#sendMessage" ).click(function() { sendMessage(); });
+    });
+
+    function disconnect() {
+        if (stompClient !== null) {
+            stompClient.disconnect();
+        }
+        setConnected(false);
+        console.log("Disconnected");
+    }
+
+</script>
+</body>
+</html>
